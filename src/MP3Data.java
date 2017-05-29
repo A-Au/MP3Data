@@ -25,29 +25,19 @@ public class MP3Data {
         processMp3(new FileInputStream(this.mp3File));
     }
     
-    public int getMP3FrameSize() {
-        return frameSize;
-    }
+    public int getMP3FrameSize() { return frameSize; }
 
-    public int getMP3FirstFrame() {
-        return firstFrame;
-    }
+    public int getMP3FirstFrame() { return firstFrame; }
 
-    public int getMp3Header() {
-        return mp3HeaderInt;
-    }
+    public int getMp3Header() { return mp3HeaderInt; }
 
-    public int[] getMp3HeaderArray() {
-        return mp3Header;
-    }
+    public int[] getMp3HeaderArray() { return mp3Header; }
 
     public MPEGVersion getMPEGAudioVersion() { return mpegVersion; }
 
     public LayerVersion getLayer() { return layerVersion; }
 
-    public boolean isProtected() {
-        return (mp3Header[1] & 1) == 1;
-    }
+    public boolean isProtected() { return (mp3Header[1] & 1) == 1; }
 
     // Returns bit rate in kbps, if -1, bad or free
     // TODO: Is there a better way to do this?
