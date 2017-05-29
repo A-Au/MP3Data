@@ -6,10 +6,14 @@ import java.io.InputStream;
 public class MP3Data {
 
     private File mp3File;
-    private int frameSize = -1;
-    private int firstFrame = -1;
+    private int frameSize;
+    private int firstFrame;
     private int mp3HeaderInt;
     private int[] mp3Header;
+    private MPEGVersion mpegVersion;
+    private LayerVersion layerVersion;
+    private int sampleRateFreq;
+    private ChannelMode channelMode;
 
     public MP3Data(String pathToFile) throws Exception {
         this.mp3File = new File(pathToFile);
@@ -37,44 +41,12 @@ public class MP3Data {
         return mp3Header;
     }
 
-    public MPEGVersion getMPEGAudioVersion() {
-        int ver = (mp3Header[1] >> 3) & 3;
-        MPEGVersion mpegVer = null;
-        switch(ver){
-        case 0:
-            mpegVer = MPEGVersion.MPEG_VER_2_5;
-            break;
-        case 1:
-            mpegVer = MPEGVersion.RESERVED;
-            break;
-        case 2:
-            mpegVer = MPEGVersion.MPEG_VER_2;
-            break;
-        case 3:
-            mpegVer = MPEGVersion.MPEG_VER_1;
-            break;
-        }
-        return mpegVer;
-    }
+    public MPEGVersion getMPEGAudioVersion() { return mpegVersion; }
 
-    public LayerVersion getLayer() {
-        int ver = (mp3Header[1] >> 1) & 3;
-        LayerVersion layerVer = null;
-        switch (ver) {
-        case 0:
-            layerVer = LayerVersion.RESERVED;
-            break;
-        case 1:
-            layerVer = LayerVersion.LAYER_3;
-            break;
-        case 2:
-            layerVer = LayerVersion.LAYER_2;
-            break;
-        case 3:
-            layerVer = LayerVersion.LAYER_1;
-            break;
-        }
-        return layerVer;
+    public LayerVersion getLayer() { return layerVersion; }
+
+    public boolean isProtected() {
+        return (mp3Header[1] & 1) == 1;
     }
 
     // Returns bit rate in kbps, if -1, bad or free
@@ -266,8 +238,39 @@ public class MP3Data {
         return bitRate;
     }
 
-    public boolean isProtected() {
-        return (mp3Header[1] & 1) == 1;
+    // Returns sample rate frequency, if -1 then it is a reserved value
+    public int getSampleRateFrequency(){ return sampleRateFreq; }
+
+    // if true, then padded with one extra slot
+    public boolean isPadded(){ return ((mp3Header[2] >> 1) & 1) == 1; }
+
+    public ChannelMode getChannelMode(){ return channelMode; }
+
+    // TODO: Mode extension
+
+    public boolean isCopyright(){ return ((mp3Header[3] >> 3) & 1) == 1; }
+
+    public boolean isOriginalMedia(){ return ((mp3Header[3] >> 2) & 1) == 1; }
+
+    // TODO: Emphasis
+
+    /*************************************************************
+     *                                                           *
+     * Helper Functions                                          *
+     *                                                           *
+     *************************************************************/
+
+    private void processMp3(InputStream is) throws IOException {
+        final int LEN = 64000;
+
+        int[] arr = readIS(is, LEN);
+        findHeader(arr, LEN);
+        mp3Header = getHeader(arr);
+        mp3HeaderInt = headerToInt(arr);
+        mpegVersion = determineMPEGVersion();
+        layerVersion = determineLayerVersion();
+        sampleRateFreq = determineSampleRateFrequency();
+        channelMode = determineChannelMode();
     }
 
     private int[] readIS(InputStream is, int len) throws IOException {
@@ -288,15 +291,6 @@ public class MP3Data {
             hdr[i] = arr[firstFrame + i];
         }
         return hdr;
-    }
-
-    private void processMp3(InputStream is) throws IOException {
-        final int LEN = 64000;
-
-        int[] arr = readIS(is, LEN);
-        findHeader(arr, LEN);
-        mp3Header = getHeader(arr);
-        mp3HeaderInt = headerToInt(arr);
     }
 
     private void findHeader(int[] arr, int len) {
@@ -324,5 +318,72 @@ public class MP3Data {
                 pos = -1;
             }
         }
+    }
+
+    private LayerVersion determineLayerVersion(){
+        int ver = (mp3Header[1] >> 1) & 3;
+        // TODO: add map to this enum
+        LayerVersion layerVer = null;
+        switch (ver) {
+            case 0:
+                layerVer = LayerVersion.RESERVED;
+                break;
+            case 1:
+                layerVer = LayerVersion.LAYER_3;
+                break;
+            case 2:
+                layerVer = LayerVersion.LAYER_2;
+                break;
+            case 3:
+                layerVer = LayerVersion.LAYER_1;
+                break;
+        }
+        return layerVer;
+    }
+
+    private MPEGVersion determineMPEGVersion(){
+        int ver = (mp3Header[1] >> 3) & 3;
+        // TODO: add map to this enum
+        MPEGVersion mpegVer = null;
+        switch(ver){
+            case 0:
+                mpegVer = MPEGVersion.MPEG_VER_2_5;
+                break;
+            case 1:
+                mpegVer = MPEGVersion.RESERVED;
+                break;
+            case 2:
+                mpegVer = MPEGVersion.MPEG_VER_2;
+                break;
+            case 3:
+                mpegVer = MPEGVersion.MPEG_VER_1;
+                break;
+        }
+        return mpegVer;
+    }
+
+    private int determineSampleRateFrequency(){
+        int freqInd = (mp3Header[2] >> 2) & 3;
+        int freq = -1;
+        if (freqInd == 0){
+            freq = 44100;
+        } else if (freqInd == 1){
+            freq = 48000;
+        } else if (freqInd == 2){
+            freq = 32000;
+        }
+        if (freq != -1){
+            if (mpegVersion == MPEGVersion.MPEG_VER_2){
+                freq /= 2;
+            } else if (mpegVersion == MPEGVersion.MPEG_VER_2_5){
+                freq /= 4;
+            }
+        }
+        return freq;
+    }
+
+    private ChannelMode determineChannelMode(){
+        int id = (mp3Header[3] >> 6) & 3;
+        return ChannelMode.valueOf(id);
     }
 }
