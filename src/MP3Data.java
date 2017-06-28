@@ -42,8 +42,8 @@ public class MP3Data {
     // Returns bit rate in kbps, if -1, bad or free
     public int getBitRate() {
         int vInd = getVInd();
-        int bitInd = (mp3Header[2] >> 4) & 15;
-        return MP3Constants.BITRATE[vInd][bitInd];
+        int bitInd = ((mp3Header[2] >> 4) & 15) - 1;
+        return (bitInd >= 0 && bitInd < 15)? MP3Constants.BITRATE[vInd][bitInd] : -1;
     }
 
     // Returns sample rate frequency, if -1 then it is a reserved value
